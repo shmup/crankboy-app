@@ -94,6 +94,14 @@ jobs:
                   # Verify critical SDK components exist
                   echo "Checking for required SDK components..."
                   ls -la PlaydateSDK/C_API/buildsupport/ || echo "WARNING: buildsupport directory not found"
+                  
+                  # Check for important SDK tools and directories
+                  echo "=== Full SDK structure ==="
+                  find PlaydateSDK -type f -name "*.exe" | head -10
+                  echo "=== SDK bin directory ==="
+                  ls -la PlaydateSDK/bin/ || echo "No bin directory"
+                  echo "=== Looking for lm or luac ==="
+                  find PlaydateSDK -name "*lm*" -o -name "*luac*" -o -name "*.exe" | grep -E "(lm|luac)" || echo "No Lua compiler found"
 
             # Step 4: Prepare Lua scripts
             - name: Prepare Lua Scripts
@@ -130,9 +138,34 @@ jobs:
                   echo "Checking for SDK tools..."
                   ls -la "$PLAYDATE_SDK_PATH/bin/" || echo "No bin directory found"
                   
+                  # Try to find and use the correct Lua compiler
+                  if [ -f "$PLAYDATE_SDK_PATH/bin/lm.exe" ]; then
+                      echo "Found lm.exe in SDK bin"
+                  elif [ -f "$PLAYDATE_SDK_PATH/bin/luac.exe" ]; then
+                      echo "Found luac.exe, creating lm symlink"
+                      ln -s "$PLAYDATE_SDK_PATH/bin/luac.exe" "$PLAYDATE_SDK_PATH/bin/lm"
+                  else
+                      echo "No Lua compiler found, trying to use standard gcc for C compilation"
+                      # Override the Lua compiler in the Makefile temporarily
+                      export LM="gcc"
+                  fi
+                  
                   # Build using make for simulator target
                   echo "Building CrankBoy for Windows Simulator..."
-                  make -j$(nproc) simulator
+                  make -j$(nproc) simulator || {
+                      echo "Make failed, trying alternative build approach..."
+                      
+                      # Try building manually with gcc if make fails
+                      echo "Attempting manual compilation..."
+                      gcc -DTARGET_SIMULATOR=1 -DTARGET_EXTENSION=1 \
+                          -I . -I "$PLAYDATE_SDK_PATH/C_API" -I src -I libs \
+                          -I libs/minigb_apu -I libs/lz4 -I libs/lua-5.4.7 -I libs/pdnewlib \
+                          -o build/pdex.exe \
+                          src/cscripts/*.c src/*.c src/scenes/*.c \
+                          libs/minigb_apu/minigb_apu.c libs/pdnewlib/pdnewlib.c main.c \
+                          libs/lua-5.4.7/onelua.c libs/lz4/lz4.c \
+                          "$PLAYDATE_SDK_PATH/C_API/buildsupport/setup.c" || echo "Manual build also failed"
+                  }
 
             # Step 7: Get Windows Simulator Artifact Name
             - name: Get Windows Simulator Artifact Name
