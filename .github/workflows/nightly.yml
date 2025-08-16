@@ -242,14 +242,12 @@ jobs:
             run:
                 shell: msys2 {0}
         steps:
-            # Step 1: Check out the repository's code, submodules, and LFS files.
             - name: Checkout Repository
               uses: actions/checkout@v4
               with:
                   submodules: "recursive"
                   lfs: true
 
-            # Step 2: Setup MSYS2 with MinGW64
             - name: Setup MSYS2 MinGW64
               uses: msys2/setup-msys2@v2
               with:
@@ -266,6 +264,7 @@ jobs:
                       curl
                       tar
                       git
+                      zip
 
             - name: Download and Setup Playdate SDK
               run: |
