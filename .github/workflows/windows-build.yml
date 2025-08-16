@@ -122,10 +122,17 @@ jobs:
               run: |
                   # Export SDK path for make
                   export PLAYDATE_SDK_PATH="$(pwd)/PlaydateSDK"
-
-                  # Build using mingw32-make or make
+                  
+                  # Add SDK bin directory to PATH
+                  export PATH="$PLAYDATE_SDK_PATH/bin:$PATH"
+                  
+                  # Verify SDK tools are available
+                  echo "Checking for SDK tools..."
+                  ls -la "$PLAYDATE_SDK_PATH/bin/" || echo "No bin directory found"
+                  
+                  # Build using make for simulator target
                   echo "Building CrankBoy for Windows Simulator..."
-                  make -j$(nproc) simulator || mingw32-make -j$(nproc) simulator
+                  make -j$(nproc) simulator
 
             # Step 7: Get Windows Simulator Artifact Name
             - name: Get Windows Simulator Artifact Name
