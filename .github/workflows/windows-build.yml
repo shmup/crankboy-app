@@ -157,6 +157,7 @@ jobs:
                       
                       # Try building manually with gcc if make fails
                       echo "Attempting manual compilation..."
+                      mkdir -p build
                       gcc -DTARGET_SIMULATOR=1 -DTARGET_EXTENSION=1 \
                           -I . -I "$PLAYDATE_SDK_PATH/C_API" -I src -I libs \
                           -I libs/minigb_apu -I libs/lz4 -I libs/lua-5.4.7 -I libs/pdnewlib \
@@ -164,7 +165,9 @@ jobs:
                           src/cscripts/*.c src/*.c src/scenes/*.c \
                           libs/minigb_apu/minigb_apu.c libs/pdnewlib/pdnewlib.c main.c \
                           libs/lua-5.4.7/onelua.c libs/lz4/lz4.c \
-                          "$PLAYDATE_SDK_PATH/C_API/buildsupport/setup.c" || echo "Manual build also failed"
+                          "$PLAYDATE_SDK_PATH/C_API/buildsupport/setup.c" && \
+                      echo "Manual build succeeded! Created build/pdex.exe" || \
+                      echo "Manual build also failed"
                   }
 
             # Step 7: Get Windows Simulator Artifact Name
@@ -181,12 +184,32 @@ jobs:
               shell: bash
               run: |
                   mkdir -p artifact_root
+                  
+                  # Check what actually got built
+                  echo "=== Checking build outputs ==="
+                  ls -la build/ || echo "No build directory"
+                  ls -la Source/ || echo "No Source directory"
+                  find . -name "*.pdx*" -o -name "pdex*" | head -10
+                  
+                  # Look for different possible outputs
                   if [ -d "CrankBoy.pdx" ]; then
+                      echo "Found CrankBoy.pdx directory"
                       cp -r CrankBoy.pdx artifact_root/
+                  elif [ -f "build/pdex.exe" ]; then
+                      echo "Found build/pdex.exe - copying as executable"
+                      cp build/pdex.exe artifact_root/CrankBoy-simulator.exe
+                  elif [ -f "build/pdex" ]; then
+                      echo "Found build/pdex - copying as executable"
+                      cp build/pdex artifact_root/CrankBoy-simulator
+                  elif [ -f "Source/pdex.exe" ]; then
+                      echo "Found Source/pdex.exe"
+                      cp Source/pdex.exe artifact_root/CrankBoy-simulator.exe
                   else
-                      echo "Warning: CrankBoy.pdx not found in expected location"
-                      # Try to find it in other common locations
-                      find . -name "CrankBoy.pdx" -type d -exec cp -r {} artifact_root/ \;
+                      echo "No recognizable build output found, uploading debug info"
+                      echo "Build contents:" > artifact_root/build-debug.txt
+                      find . -name "*pdx*" -o -name "*pdex*" -o -name "*.exe" | head -20 >> artifact_root/build-debug.txt
+                      ls -la build/ >> artifact_root/build-debug.txt 2>/dev/null || true
+                      ls -la Source/ >> artifact_root/build-debug.txt 2>/dev/null || true
                   fi
 
             # Step 9: Upload Windows Simulator Artifact
