@@ -1,0 +1,133 @@
+name: Windows Simulator Build
+
+on:
+    push:
+        branches: [development, main]
+    pull_request:
+        branches: [development, main]
+
+    # Allows you to run this workflow manually from the Actions tab on GitHub.
+    workflow_dispatch:
+
+jobs:
+    build_simulator_windows:
+        name: Create Windows Simulator Build
+        runs-on: windows-latest
+        defaults:
+            run:
+                shell: msys2 {0}
+        steps:
+            # Step 1: Check out the repository's code, submodules, and LFS files.
+            - name: Checkout Repository
+              uses: actions/checkout@v4
+              with:
+                  submodules: "recursive"
+                  lfs: true
+
+            # Step 2: Setup MSYS2 with MinGW64
+            - name: Setup MSYS2 MinGW64
+              uses: msys2/setup-msys2@v2
+              with:
+                  msystem: MINGW64
+                  update: true
+                  install: >-
+                      mingw-w64-x86_64-gcc
+                      mingw-w64-x86_64-make
+                      mingw-w64-x86_64-cmake
+                      mingw-w64-x86_64-pkg-config
+                      make
+                      unzip
+                      curl
+                      tar
+                      git
+
+            # Step 3: Download and Setup Playdate SDK for Windows
+            - name: Download and Setup Playdate SDK
+              shell: msys2 {0}
+              run: |
+                  # Download Playdate SDK 2.7.6 for Windows
+                  echo "Downloading Playdate SDK for Windows..."
+                  curl -L -o PlaydateSDK-2.7.6.exe "https://download.panic.com/playdate_sdk/Windows/PlaydateSDK-2.7.6.exe"
+
+                  # Extract the installer (it's a self-extracting archive)
+                  echo "Extracting Playdate SDK..."
+                  7z x PlaydateSDK-2.7.6.exe -oPlaydateSDK-temp -y || true
+
+                  # Find and extract the actual SDK files
+                  if [ -d "PlaydateSDK-temp/\$_OUTDIR" ]; then
+                      mv "PlaydateSDK-temp/\$_OUTDIR" PlaydateSDK
+                  elif [ -d "PlaydateSDK-temp" ]; then
+                      mv PlaydateSDK-temp PlaydateSDK
+                  fi
+
+                  # Set SDK path for the build
+                  SDK_PATH="$(pwd)/PlaydateSDK"
+                  echo "PLAYDATE_SDK_PATH=$SDK_PATH" >> $GITHUB_ENV
+
+                  # Convert Windows path to MSYS2 path format
+                  SDK_PATH_MSYS=$(cygpath -u "$SDK_PATH")
+                  echo "SDK installed at: $SDK_PATH_MSYS"
+
+                  # Verify SDK structure
+                  ls -la PlaydateSDK/ || echo "SDK directory structure not as expected"
+
+            # Step 4: Prepare Lua scripts
+            - name: Prepare Lua Scripts
+              run: |
+                  mkdir -p Source/scripts
+                  for file in src/scripts/*.lua; do
+                      if [ -e "$file" ]; then
+                          base=$(basename "$file" .lua)
+                          cp "$file" "Source/scripts/${base}.l"
+                      fi
+                  done
+
+            # Step 5: Update Version and Build Number in pdxinfo
+            - name: Update Version and Build Number
+              run: |
+                  DATE_STAMP=$(date +'%Y%m%d')
+                  CURRENT_VERSION=$(grep '^version=' Source/pdxinfo | cut -d '=' -f 2)
+                  NEW_VERSION="${CURRENT_VERSION}.${DATE_STAMP}"
+                  echo "Updating version in Source/pdxinfo to $NEW_VERSION"
+                  sed -i -e "s/^version=.*/version=$NEW_VERSION/" -e "s/^buildNumber=.*/buildNumber=$DATE_STAMP/" Source/pdxinfo
+                  echo "Contents of pdxinfo after update:"
+                  cat Source/pdxinfo
+
+            # Step 6: Build the Project for Simulator
+            - name: Build Simulator Project
+              run: |
+                  # Export SDK path for make
+                  export PLAYDATE_SDK_PATH="$(pwd)/PlaydateSDK"
+
+                  # Build using mingw32-make or make
+                  echo "Building CrankBoy for Windows Simulator..."
+                  make -j$(nproc) simulator || mingw32-make -j$(nproc) simulator
+
+            # Step 7: Get Windows Simulator Artifact Name
+            - name: Get Windows Simulator Artifact Name
+              id: artifact_details
+              shell: bash
+              run: |
+                  APP_VERSION=$(grep '^version=' Source/pdxinfo | cut -d '=' -f 2)
+                  ARTIFACT_NAME="CrankBoy-Simulator-${APP_VERSION}-windows"
+                  echo "artifact_name=${ARTIFACT_NAME}" >> $GITHUB_OUTPUT
+
+            # Step 8: Prepare Artifact for Upload
+            - name: Prepare Artifact for Upload
+              shell: bash
+              run: |
+                  mkdir -p artifact_root
+                  if [ -d "CrankBoy.pdx" ]; then
+                      cp -r CrankBoy.pdx artifact_root/
+                  else
+                      echo "Warning: CrankBoy.pdx not found in expected location"
+                      # Try to find it in other common locations
+                      find . -name "CrankBoy.pdx" -type d -exec cp -r {} artifact_root/ \;
+                  fi
+
+            # Step 9: Upload Windows Simulator Artifact
+            - name: Upload Windows Simulator Artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: ${{ steps.artifact_details.outputs.artifact_name }}
+                  path: artifact_root/
