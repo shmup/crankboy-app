@@ -315,9 +315,11 @@ jobs:
                   SDK_PATH_MSYS=$(cygpath -u "$SDK_PATH")
                   echo "SDK installed at: $SDK_PATH_MSYS"
                   
-                  # Verify critical SDK components exist
-                  echo "Checking for required SDK components..."
-                  ls -la PlaydateSDK/C_API/buildsupport/ || echo "WARNING: buildsupport directory not found"
+                  # Verify SDK C_API exists
+                  if [ ! -d "PlaydateSDK/C_API" ]; then
+                      echo "ERROR: C_API directory not found in SDK"
+                      exit 1
+                  fi
 
             # Step 4: Prepare Lua scripts
             - name: Prepare Lua Scripts
@@ -344,42 +346,18 @@ jobs:
             # Step 6: Build the Project for Simulator
             - name: Build Simulator Project
               run: |
-                  # Export SDK path for make
                   export PLAYDATE_SDK_PATH="$(pwd)/PlaydateSDK"
+                  mkdir -p build
                   
-                  # Add SDK bin directory to PATH
-                  export PATH="$PLAYDATE_SDK_PATH/bin:$PATH"
-                  
-                  # Try to find and use the correct Lua compiler
-                  if [ -f "$PLAYDATE_SDK_PATH/bin/lm.exe" ]; then
-                      echo "Found lm.exe in SDK bin"
-                  elif [ -f "$PLAYDATE_SDK_PATH/bin/luac.exe" ]; then
-                      echo "Found luac.exe, creating lm symlink"
-                      ln -s "$PLAYDATE_SDK_PATH/bin/luac.exe" "$PLAYDATE_SDK_PATH/bin/lm"
-                  else
-                      echo "No Lua compiler found, trying to use standard gcc for C compilation"
-                      export LM="gcc"
-                  fi
-                  
-                  # Build using make for simulator target
                   echo "Building CrankBoy for Windows Simulator..."
-                  make -j$(nproc) simulator || {
-                      echo "Make failed, trying alternative build approach..."
-                      
-                      # Try building manually with gcc if make fails
-                      echo "Attempting manual compilation..."
-                      mkdir -p build
-                      gcc -DTARGET_SIMULATOR=1 -DTARGET_EXTENSION=1 \
-                          -I . -I "$PLAYDATE_SDK_PATH/C_API" -I src -I libs \
-                          -I libs/minigb_apu -I libs/lz4 -I libs/lua-5.4.7 -I libs/pdnewlib \
-                          -o build/pdex.exe \
-                          src/cscripts/*.c src/*.c src/scenes/*.c \
-                          libs/minigb_apu/minigb_apu.c libs/pdnewlib/pdnewlib.c main.c \
-                          libs/lua-5.4.7/onelua.c libs/lz4/lz4.c \
-                          "$PLAYDATE_SDK_PATH/C_API/buildsupport/setup.c" && \
-                      echo "Manual build succeeded! Created build/pdex.exe" || \
-                      echo "Manual build also failed"
-                  }
+                  gcc -DTARGET_SIMULATOR=1 -DTARGET_EXTENSION=1 \
+                      -I . -I "$PLAYDATE_SDK_PATH/C_API" -I src -I libs \
+                      -I libs/minigb_apu -I libs/lz4 -I libs/lua-5.4.7 -I libs/pdnewlib \
+                      -o build/pdex.exe \
+                      src/cscripts/*.c src/*.c src/scenes/*.c \
+                      libs/minigb_apu/minigb_apu.c libs/pdnewlib/pdnewlib.c main.c \
+                      libs/lua-5.4.7/onelua.c libs/lz4/lz4.c \
+                      "$PLAYDATE_SDK_PATH/C_API/buildsupport/setup.c"
 
             # Step 7: Get Windows Simulator Artifact Name
             - name: Get Windows Simulator Artifact Name
@@ -392,36 +370,9 @@ jobs:
 
             # Step 8: Prepare Artifact for Upload
             - name: Prepare Artifact for Upload
-              shell: bash
               run: |
                   mkdir -p artifact_root
-                  
-                  # Check what actually got built
-                  echo "=== Checking build outputs ==="
-                  ls -la build/ || echo "No build directory"
-                  ls -la Source/ || echo "No Source directory"
-                  find . -name "*.pdx*" -o -name "pdex*" | head -10
-                  
-                  # Look for different possible outputs
-                  if [ -d "CrankBoy.pdx" ]; then
-                      echo "Found CrankBoy.pdx directory"
-                      cp -r CrankBoy.pdx artifact_root/
-                  elif [ -f "build/pdex.exe" ]; then
-                      echo "Found build/pdex.exe - copying as executable"
-                      cp build/pdex.exe artifact_root/CrankBoy-simulator.exe
-                  elif [ -f "build/pdex" ]; then
-                      echo "Found build/pdex - copying as executable"
-                      cp build/pdex artifact_root/CrankBoy-simulator
-                  elif [ -f "Source/pdex.exe" ]; then
-                      echo "Found Source/pdex.exe"
-                      cp Source/pdex.exe artifact_root/CrankBoy-simulator.exe
-                  else
-                      echo "No recognizable build output found, uploading debug info"
-                      echo "Build contents:" > artifact_root/build-debug.txt
-                      find . -name "*pdx*" -o -name "*pdex*" -o -name "*.exe" | head -20 >> artifact_root/build-debug.txt
-                      ls -la build/ >> artifact_root/build-debug.txt 2>/dev/null || true
-                      ls -la Source/ >> artifact_root/build-debug.txt 2>/dev/null || true
-                  fi
+                  cp build/pdex.exe artifact_root/CrankBoy-simulator.exe
 
             # Step 9: Upload Windows Simulator Artifact
             - name: Upload Windows Simulator Artifact
