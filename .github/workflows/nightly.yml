@@ -262,6 +262,7 @@ jobs:
                       mingw-w64-x86_64-pkg-config
                       make
                       unzip
+                      p7zip
                       curl
                       tar
                       git
@@ -273,27 +274,50 @@ jobs:
                   echo "Downloading Playdate SDK for Windows..."
                   curl -L -o PlaydateSDK-2.7.6.exe "https://download.panic.com/playdate_sdk/Windows/PlaydateSDK-2.7.6.exe"
                   
-                  # Extract the installer (it's a self-extracting archive)
-                  echo "Extracting Playdate SDK..."
-                  7z x PlaydateSDK-2.7.6.exe -oPlaydateSDK-temp -y || true
+                  # The Windows SDK is an NSIS installer, we need to extract it properly
+                  echo "Extracting Playdate SDK installer..."
+                  7z x PlaydateSDK-2.7.6.exe -oPlaydateSDK-extract -y
                   
-                  # Find and extract the actual SDK files
-                  if [ -d "PlaydateSDK-temp/\$_OUTDIR" ]; then
-                      mv "PlaydateSDK-temp/\$_OUTDIR" PlaydateSDK
-                  elif [ -d "PlaydateSDK-temp" ]; then
-                      mv PlaydateSDK-temp PlaydateSDK
+                  # The actual SDK files are usually in a subdirectory
+                  # First, let's see what was extracted
+                  echo "Checking extracted contents..."
+                  ls -la PlaydateSDK-extract/
+                  
+                  # Try to find the SDK directory - it might be directly extracted or in a subfolder
+                  if [ -d "PlaydateSDK-extract/PlaydateSDK" ]; then
+                      mv PlaydateSDK-extract/PlaydateSDK PlaydateSDK
+                  elif [ -d "PlaydateSDK-extract/\$_OUTDIR" ]; then
+                      # NSIS installers often extract to $_OUTDIR
+                      mv "PlaydateSDK-extract/\$_OUTDIR" PlaydateSDK
+                  elif [ -d "PlaydateSDK-extract" ]; then
+                      # Maybe the files are directly in the extract folder
+                      mv PlaydateSDK-extract PlaydateSDK
+                  else
+                      echo "ERROR: Could not find SDK files after extraction"
+                      find PlaydateSDK-extract -type d -maxdepth 2
+                      exit 1
+                  fi
+                  
+                  # Verify the SDK structure is correct
+                  echo "Verifying SDK structure..."
+                  if [ ! -d "PlaydateSDK/C_API" ]; then
+                      echo "ERROR: C_API directory not found in SDK"
+                      echo "SDK contents:"
+                      ls -la PlaydateSDK/
+                      exit 1
                   fi
                   
                   # Set SDK path for the build
                   SDK_PATH="$(pwd)/PlaydateSDK"
                   echo "PLAYDATE_SDK_PATH=$SDK_PATH" >> $GITHUB_ENV
                   
-                  # Convert Windows path to MSYS2 path format
+                  # Convert Windows path to MSYS2 path format for logging
                   SDK_PATH_MSYS=$(cygpath -u "$SDK_PATH")
                   echo "SDK installed at: $SDK_PATH_MSYS"
                   
-                  # Verify SDK structure
-                  ls -la PlaydateSDK/ || echo "SDK directory structure not as expected"
+                  # Verify critical SDK components exist
+                  echo "Checking for required SDK components..."
+                  ls -la PlaydateSDK/C_API/buildsupport/ || echo "WARNING: buildsupport directory not found"
 
             # Step 4: Prepare Lua scripts
             - name: Prepare Lua Scripts
