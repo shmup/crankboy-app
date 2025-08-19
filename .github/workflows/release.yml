@@ -153,29 +153,11 @@ jobs:
                       git
                       zip
 
-            - name: Download and Setup Playdate SDK
+            - name: Setup Playdate SDK from Submodule
               shell: msys2 {0}
               run: |
-                  curl -L -o PlaydateSDK-2.7.6.exe "https://download.panic.com/playdate_sdk/Windows/PlaydateSDK-2.7.6.exe"
-                  7z x PlaydateSDK-2.7.6.exe -oPlaydateSDK-extract -y
-                  
-                  if [ -d "PlaydateSDK-extract/PlaydateSDK" ]; then
-                      mv PlaydateSDK-extract/PlaydateSDK PlaydateSDK
-                  elif [ -d "PlaydateSDK-extract/\$_OUTDIR" ]; then
-                      mv "PlaydateSDK-extract/\$_OUTDIR" PlaydateSDK
-                  elif [ -d "PlaydateSDK-extract" ]; then
-                      mv PlaydateSDK-extract PlaydateSDK
-                  else
-                      echo "ERROR: Could not find SDK files after extraction"
-                      find PlaydateSDK-extract -type d -maxdepth 2
-                      exit 1
-                  fi
-
-                  if [ ! -d "PlaydateSDK/C_API" ]; then
-                      echo "ERROR: C_API directory not found in SDK"
-                      exit 1
-                  fi
-
+                  echo "Extracting SDK from toolchain/win/..."
+                  7z x toolchain/win/PlaydateSDK-2.7.6.exe -oPlaydateSDK -y
                   echo "PLAYDATE_SDK_PATH=$(pwd)/PlaydateSDK" >> $GITHUB_ENV
 
             - name: Prepare Lua Scripts
