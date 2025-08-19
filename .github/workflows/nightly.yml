@@ -266,10 +266,10 @@ jobs:
                       git
                       zip
 
-            - name: Download and Setup Playdate SDK
+            - name: Setup Playdate SDK from Submodule
               run: |
-                  curl -L -o PlaydateSDK-2.7.6.exe "https://download.panic.com/playdate_sdk/Windows/PlaydateSDK-2.7.6.exe"
-                  7z x PlaydateSDK-2.7.6.exe -oPlaydateSDK-extract -y
+                  echo "Extracting SDK from toolchain/win/..."
+                  7z x toolchain/win/PlaydateSDK-2.7.6.exe -oPlaydateSDK-extract -y
 
                   if [ -d "PlaydateSDK-extract/PlaydateSDK" ]; then
                       mv PlaydateSDK-extract/PlaydateSDK PlaydateSDK
