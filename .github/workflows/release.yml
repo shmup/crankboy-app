@@ -170,23 +170,15 @@ jobs:
                       fi
                   done
 
-            - name: Build Simulator Project
+            - name: Build Universal Project (Device & Simulator)
               run: |
                   export PLAYDATE_SDK_PATH="$(pwd)/PlaydateSDK"
-                  mkdir -p build
-                  gcc -DTARGET_SIMULATOR=1 -DTARGET_EXTENSION=1 \
-                      -I . -I "$PLAYDATE_SDK_PATH/C_API" -I src -I libs \
-                      -I libs/minigb_apu -I libs/lz4 -I libs/lua-5.4.7 -I libs/pdnewlib \
-                      -o build/pdex.exe \
-                      src/cscripts/*.c src/*.c src/scenes/*.c \
-                      libs/minigb_apu/minigb_apu.c libs/pdnewlib/pdnewlib.c main.c \
-                      libs/lua-5.4.7/onelua.c libs/lz4/lz4.c \
-                      "$PLAYDATE_SDK_PATH/C_API/buildsupport/setup.c"
+                  make -j$(nproc)
 
             - name: Package Windows Simulator Build
               run: |
                   mkdir -p CrankBoy-Windows
-                  cp build/pdex.exe CrankBoy-Windows/CrankBoy-simulator.exe
+                  mv CrankBoy.pdx CrankBoy-Windows/
                   zip -r CrankBoy-Simulator-Windows.zip CrankBoy-Windows
 
             - name: Upload Windows Simulator Artifact
