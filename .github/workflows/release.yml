@@ -170,23 +170,29 @@ jobs:
                       fi
                   done
 
-            - name: Build Simulator Project
+            - name: Build Simulator Library for Windows
               run: |
                   export PLAYDATE_SDK_PATH="$(pwd)/PlaydateSDK"
+                  # Create build directory
                   mkdir -p build
-                  gcc -DTARGET_SIMULATOR=1 -DTARGET_EXTENSION=1 \
+                  # Compile simulator extension DLL
+                  gcc -shared -DTARGET_SIMULATOR=1 -DTARGET_EXTENSION=1 \
                       -I . -I "$PLAYDATE_SDK_PATH/C_API" -I src -I libs \
                       -I libs/minigb_apu -I libs/lz4 -I libs/lua-5.4.7 -I libs/pdnewlib \
-                      -o build/pdex.exe \
+                      -o build/pdex.dll \
                       src/cscripts/*.c src/*.c src/scenes/*.c \
                       libs/minigb_apu/minigb_apu.c libs/pdnewlib/pdnewlib.c main.c \
                       libs/lua-5.4.7/onelua.c libs/lz4/lz4.c \
                       "$PLAYDATE_SDK_PATH/C_API/buildsupport/setup.c"
+                  # Copy DLL to Source folder for pdc
+                  cp build/pdex.dll Source/
+                  # Use pdc to create the .pdx package
+                  "$PLAYDATE_SDK_PATH/bin/pdc" --quiet Source CrankBoy.pdx
 
             - name: Package Windows Simulator Build
               run: |
                   mkdir -p CrankBoy-Windows
-                  cp build/pdex.exe CrankBoy-Windows/CrankBoy-simulator.exe
+                  mv CrankBoy.pdx CrankBoy-Windows/
                   zip -r CrankBoy-Simulator-Windows.zip CrankBoy-Windows
 
             - name: Upload Windows Simulator Artifact
