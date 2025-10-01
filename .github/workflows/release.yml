@@ -191,9 +191,7 @@ jobs:
 
             - name: Package Windows Simulator Build
               run: |
-                  mkdir -p CrankBoy-Windows
-                  mv CrankBoy.pdx CrankBoy-Windows/
-                  zip -r CrankBoy-Simulator-Windows.zip CrankBoy-Windows
+                  zip -r CrankBoy-Simulator-Windows.zip CrankBoy.pdx
 
             - name: Upload Windows Simulator Artifact
               uses: actions/upload-artifact@v4
